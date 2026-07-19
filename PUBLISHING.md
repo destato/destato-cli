@@ -6,10 +6,7 @@ registry is what `npx` resolves the name from.
 
 ## Before the first publish (one-time)
 
-1. **Pick a license.** `package.json` currently says `"license": "UNLICENSED"`.
-   For a public tool users are meant to run, a permissive license (e.g. `MIT`) is
-   conventional. Decide this deliberately — it's a real IP choice — and add a
-   `LICENSE` file if you pick one.
+1. **License** — MIT, in the `LICENSE` file and `package.json`.
 
 2. **Claim the name.** Confirm `destato-cli` is free:
 
@@ -33,9 +30,10 @@ npm publish               # unscoped public by default
 # npm publish --access public
 ```
 
-`prepublishOnly` builds `dist/` for you, and `files` in `package.json` limits the
-tarball to `dist/` (plus the always-included `package.json`/`README`). Verify what
-will ship before publishing:
+The `prepare` script builds `dist/` for you (it runs before publish, on git
+installs, and on a local `npm install`), and `files` in `package.json` limits the
+tarball to `dist/` (plus the always-included `package.json`/`README`/`LICENSE`).
+Verify what will ship before publishing:
 
 ```bash
 npm pack --dry-run

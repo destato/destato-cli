@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build"
   },
   "keywords": [
     "destato",
@@ -23,7 +23,7 @@
     "blockers",
     "api"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "commander": "^12.1.0"
   },

@@ -19,6 +19,26 @@ export DESTATO_API_TOKEN=dst_pat_...
 destato blockers list
 ```
 
+## Install from the git repo (no npm publish needed)
+
+The package builds itself on install (via the `prepare` script), so you can
+install it straight from the repo before it's ever published to npm:
+
+```bash
+# From a pushed GitHub repo:
+npm install -g github:<org>/destato-cli
+npx github:<org>/destato-cli blockers list
+
+# From a local clone (run from anywhere):
+npm install -g /path/to/destato-cli
+
+# While developing, from inside the repo — symlinks the `destato` command:
+npm link
+```
+
+Any of these give you the `destato` command globally; `npm uninstall -g
+destato-cli` (or `npm unlink`) removes it.
+
 ## Authentication
 
 Create a **Personal Access Token** in Destato under **Integrations → API tokens**,
