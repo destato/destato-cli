@@ -11,13 +11,16 @@ No install required — run it with `npx`:
 DESTATO_API_TOKEN=dst_pat_... npx destato-cli blockers list
 ```
 
-Or install it globally and use the `destato` command:
+Or install it globally:
 
 ```bash
 npm install -g destato-cli
 export DESTATO_API_TOKEN=dst_pat_...
 destato blockers list
 ```
+
+The installed command is **`destato`** (with `destato-cli` as an alias, so either
+works).
 
 ## Install from the git repo (no npm publish needed)
 

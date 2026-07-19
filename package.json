@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Command-line client for the Destato API",
   "bin": {
-    "destato": "dist/index.js"
+    "destato": "dist/index.js",
+    "destato-cli": "dist/index.js"
   },
   "files": [
     "dist"
