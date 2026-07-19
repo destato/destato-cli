@@ -1,0 +1,34 @@
+{
+  "name": "destato-cli",
+  "version": "0.1.0",
+  "description": "Command-line client for the Destato API",
+  "bin": {
+    "destato": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "destato",
+    "cli",
+    "blockers",
+    "api"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
