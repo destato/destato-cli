@@ -29,8 +29,8 @@ install it straight from the repo before it's ever published to npm:
 
 ```bash
 # From a pushed GitHub repo:
-npm install -g github:<org>/destato-cli
-npx github:<org>/destato-cli blockers list
+npm install -g github:destato/destato-cli
+npx github:destato/destato-cli blockers list
 
 # From a local clone (run from anywhere):
 npm install -g /path/to/destato-cli
