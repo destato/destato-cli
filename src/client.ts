@@ -6,6 +6,9 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    // The parsed response body, when it was JSON. Kept so --json can emit the
+    // API's own error shape (including Zod's `errors` list) rather than prose.
+    readonly body?: unknown,
   ) {
     super(message);
   }
@@ -21,6 +24,11 @@ export interface Blocker {
   status: string;
   affectedTeam: { id: string; name: string } | null;
   affectedUser: { id: string; name: string } | null;
+  blockedByUser: { id: string; name: string } | null;
+  blockedByTeam: { id: string; name: string } | null;
+  blockedByText: string | null;
+  ownerUser: { id: string; name: string } | null;
+  ownerTeam: { id: string; name: string } | null;
   createdAt: string;
   blockedSince: string | null;
   relationships: string[];
@@ -28,6 +36,12 @@ export interface Blocker {
   snoozedUntil: string | null;
   aging: boolean;
   delayed: boolean;
+}
+
+// One blocker in full: the list shape plus the description, the one field a
+// list holds back.
+export interface BlockerDetail extends Blocker {
+  description: string | null;
 }
 
 export interface DirectoryUser {
@@ -45,11 +59,26 @@ export interface DirectoryTeam {
   responder: { id: string; name: string } | null;
 }
 
+// The three party unions the create endpoint takes. `kind` is explicit on the
+// wire so exactly one variant is expressible; the CLI derives it from which
+// flags were given. `text` is only ever valid for blockedBy.
+export type UserParty = { kind: 'user'; userId: string; teamId?: string };
+export type TeamParty = { kind: 'team'; teamId: string };
+export type TextParty = { kind: 'text'; text: string };
+
+export type AffectedParty = UserParty | TeamParty;
+export type OwnerParty = UserParty | TeamParty;
+export type BlockedByParty = UserParty | TeamParty | TextParty;
+
 export interface CreateBlockerInput {
   type: string;
   title: string;
-  affectedTeamId: string;
-  description?: string;
+  description: string;
+  // Omitted means the token's own user, with their sole team filled in.
+  affected?: AffectedParty;
+  // Required for WAITING_ON_SOMEONE and NEED_DECISION, rejected for the rest.
+  blockedBy?: BlockedByParty;
+  owner?: OwnerParty;
   blockedSince?: string;
 }
 
@@ -79,7 +108,8 @@ export class DestatoClient {
     }
 
     if (!res.ok) {
-      throw new ApiError(res.status, await extractError(res));
+      const { message, body } = await extractError(res);
+      throw new ApiError(res.status, message, body);
     }
     // 204 No Content and other empty bodies.
     if (res.status === 204) return undefined as T;
@@ -98,8 +128,17 @@ export class DestatoClient {
     return this.request('GET', `/v1/teams/${encodeURIComponent(teamId)}/blockers`);
   }
 
+  // Takes a UUID or a #key; the API tells them apart by shape.
+  getBlocker(idOrKey: string): Promise<BlockerDetail> {
+    return this.request('GET', `/v1/blockers/${encodeURIComponent(idOrKey)}`);
+  }
+
   createBlocker(input: CreateBlockerInput): Promise<Blocker> {
     return this.request('POST', '/v1/blockers', input);
+  }
+
+  getMe(): Promise<DirectoryUser> {
+    return this.request('GET', '/v1/me');
   }
 
   listUsers(): Promise<DirectoryUser[]> {
@@ -111,17 +150,40 @@ export class DestatoClient {
   }
 }
 
-// Pulls the most useful message out of an error response: Nest's JSON
-// `{ message }` (string or array) when present, else the raw text/status.
-async function extractError(res: Response): Promise<string> {
+// Pulls the most useful message out of an error response. Nest's default shape
+// is `{ message }` (string or array). A /v1 body that fails Zod validation adds
+// `errors` — the issue list — while `message` is only ever the useless constant
+// "Validation failed", so the issues have to be rendered or the caller is told
+// nothing about what was actually wrong.
+async function extractError(
+  res: Response,
+): Promise<{ message: string; body?: unknown }> {
   const text = await res.text();
   try {
     const json = JSON.parse(text);
+    const issues = formatZodIssues(json.errors);
     const message = json.message ?? json.error;
-    if (Array.isArray(message)) return message.join('; ');
-    if (typeof message === 'string') return message;
+    const base = Array.isArray(message)
+      ? message.join('; ')
+      : typeof message === 'string'
+        ? message
+        : `HTTP ${res.status}`;
+    return { message: issues ? `${base}\n${issues}` : base, body: json };
   } catch {
     // not JSON
   }
-  return text || `HTTP ${res.status}`;
+  return { message: text || `HTTP ${res.status}` };
+}
+
+// Renders Zod issues as one indented `field: message` line each. `path` is an
+// array of keys; an empty one means the issue is about the body as a whole.
+function formatZodIssues(errors: unknown): string | undefined {
+  if (!Array.isArray(errors) || errors.length === 0) return undefined;
+  return errors
+    .map((issue) => {
+      const path = Array.isArray(issue?.path) ? issue.path.join('.') : '';
+      const detail = issue?.message ?? 'invalid';
+      return `  - ${path ? `${path}: ` : ''}${detail}`;
+    })
+    .join('\n');
 }

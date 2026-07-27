@@ -62,19 +62,61 @@ destato blockers list
 destato blockers list --teams              # across all your teams
 destato blockers list --team <team-uuid>   # one team
 
-# File a blocker (affects you and the given team, which you must belong to)
+# Show one blocker in full, including the description that lists omit.
+# Also finds resolved blockers, which lists don't.
+destato blockers view --key 12
+destato blockers view --id <uuid>
+
+# File a blocker (affects you by default)
 destato blockers create \
   --type STUCK_ON_PROBLEM \
   --title "CI is red on main" \
-  --team <team-uuid> \
-  [--description "..."] [--since 2026-07-19]
+  --description "Every build since yesterday's merge fails on the lint step." \
+  [--since 2026-07-19]
 
 # Workspace directory (use these to find team/user UUIDs)
-destato users list
-destato teams list
+destato me
+destato users
+destato teams
 ```
 
 Blocker types: `WAITING_ON_SOMEONE`, `STUCK_ON_PROBLEM`, `NEED_DECISION`, `OTHER`.
+
+`--type`, `--title`, and `--description` are always required.
+
+### Who the blocker involves
+
+A blocker has up to three parties — who is **affected**, what is **blocking**
+them, and who **owns** it. Each takes one kind: a user (optionally qualified by
+one of *their own* teams), or a team. Omit a user's team and it's filled in
+automatically when they belong to exactly one.
+
+| Party | Flags |
+|---|---|
+| Affected | `--affected-user <uuid>` `--affected-user-team <uuid>` · `--affected-team <uuid>` |
+| Blocked by | `--blocked-by-user <uuid>` `--blocked-by-user-team <uuid>` · `--blocked-by-team <uuid>` · `--blocked-by-text "..."` |
+| Owner | `--owner-user <uuid>` `--owner-user-team <uuid>` · `--owner-team <uuid>` |
+
+Omit every `--affected-*` flag and the blocker affects you. Leave the owner
+unset unless someone was explicitly named — an unowned blocker goes to the
+affected team's responder for triage, which is the normal path.
+
+`--blocked-by-text` is the escape hatch for a blocking party that can't be
+matched to a workspace user or team — try `destato users` / `destato teams`
+first and fall back to text only when nothing reasonable matches. That includes
+real internal groups with no Destato team (`--blocked-by-text "Legal team"`),
+not just vendors and external tickets.
+
+**`--blocked-by-*` is required** for `WAITING_ON_SOMEONE` and `NEED_DECISION`,
+and **rejected** for `STUCK_ON_PROBLEM` and `OTHER`:
+
+```bash
+destato blockers create \
+  --type WAITING_ON_SOMEONE \
+  --title "Waiting on the schema review" \
+  --description "The migration can't land until the review comes back." \
+  --blocked-by-user <uuid>
+```
 
 In `blockers list`, the `FLAGS` column is `F`lagged / `S`noozed / `A`ging /
 `D`elayed (`·` when off).

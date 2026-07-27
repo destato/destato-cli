@@ -19,11 +19,23 @@ export async function run(
     const config = resolveConfig(opts.url);
     await handler(new DestatoClient(config), opts);
   } catch (err) {
-    fail(err);
+    fail(err, opts.json);
   }
 }
 
-function fail(err: unknown): never {
+function fail(err: unknown, json?: boolean): never {
+  // Under --json the caller is parsing stderr too, so emit the API's own error
+  // shape rather than prose. Anything that never reached the API has no body,
+  // so it gets a minimal equivalent.
+  if (json) {
+    const body =
+      err instanceof ApiError && err.body !== undefined
+        ? err.body
+        : { message: (err as Error).message };
+    process.stderr.write(`${JSON.stringify(body, null, 2)}\n`);
+    process.exit(1);
+  }
+
   if (err instanceof ConfigError) {
     process.stderr.write(`${err.message}\n`);
   } else if (err instanceof ApiError) {

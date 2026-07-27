@@ -4,6 +4,25 @@ import { run } from './shared';
 
 export function registerDirectory(program: Command): void {
   program
+    .command('me')
+    .description('Show the user this token acts as')
+    .action((_opts, command: Command) =>
+      run(command, async (client, opts) => {
+        const me = await client.getMe();
+        if (opts.json) return printJson(me);
+        printTable([me], [
+          { header: 'NAME', value: (u) => u.name },
+          { header: 'ROLE', value: (u) => u.role },
+          {
+            header: 'TEAMS',
+            value: (u) => u.teams.map((t) => t.name).join(', ') || '-',
+          },
+          { header: 'ID', value: (u) => u.id },
+        ]);
+      }),
+    );
+
+  program
     .command('users')
     .description('List the users in your workspace')
     .action((_opts, command: Command) =>
