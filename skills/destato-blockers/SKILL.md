@@ -81,6 +81,89 @@ It accepts either flag, not both. Two reasons to reach for it over a list:
 If a lookup 404s, say so rather than guessing — the key may not exist, or the
 blocker may be in a workspace the token can't see.
 
+Every single-blocker command takes the same two flags: `--key <number>` or
+`--id <uuid>` (`--uuid` is an accepted alias for `--id`).
+
+## A blocker's history
+
+```bash
+destato blockers history --key 12 --json
+```
+
+The activity timeline, oldest first: creation, status changes, field edits,
+flags, snoozes, aging crossings, and notes. Use it for "what's happened on
+this?", "has anyone chased it?", or "why was this reopened?".
+
+| Field | Meaning |
+|---|---|
+| `eventType` | `CREATED` \| `STATUS_CHANGE` \| `UPDATED` \| `FLAGGED` \| `NOTE` \| `SNOOZED` \| `AGED` |
+| `status` | Set on `CREATED` and `STATUS_CHANGE` only |
+| `note` | The note text, on `NOTE` events and on status changes that carried a reason |
+| `changedBy` | **Null means the system did it** — an aging crossing, or a snooze the cron expired |
+| `changes` | Shape depends on `eventType`: field diffs for `UPDATED`, `{isFlagged}`, `{snoozedUntil}`, `{level, hours}` |
+
+An empty array is legitimate — older blockers may have no recorded events.
+
+## Editing a blocker
+
+```bash
+destato blockers update --key 12 --title "..." --description "..."
+destato blockers update --key 12 --affected-team <uuid>
+destato blockers update --key 12 --owner-user <uuid>
+destato blockers update --key 12 --clear-owner
+```
+
+Only the fields you pass change. Every party flag from `create` works here,
+plus `--clear-blocked-by` and `--clear-owner` to remove a party. All the create
+rules still apply — a named user's team must be one of theirs, `blockedSince`
+can't be in the future, and so on.
+
+**Read this before changing `--type`.** `blockedBy` is required for
+`WAITING_ON_SOMEONE` and `NEED_DECISION` and rejected for `STUCK_ON_PROBLEM`
+and `OTHER` — and on an edit that rule is checked against the blocker **as it
+will be after your change**, not against what you sent. So a lone `--type` flag
+usually fails:
+
+| Changing type to | You must also pass |
+|---|---|
+| `WAITING_ON_SOMEONE` or `NEED_DECISION`, and it has no blocked-by | a `--blocked-by-*` flag, in the same command |
+| `STUCK_ON_PROBLEM` or `OTHER`, and it has one | `--clear-blocked-by`, in the same command |
+
+Check the blocker's current `blockedByUser`/`blockedByTeam`/`blockedByText`
+first — a list or `view` already tells you — and send both changes together.
+Doing it in two commands fails on the first one. Don't discover this by making
+a failed call.
+
+Two more things `update` will not do: **a resolved blocker can't be edited**
+(reopen it first), and **who reported a blocker never changes** — there is no
+reporter field.
+
+## Changing a blocker's status
+
+```bash
+destato blockers resolve --key 12 --note "The vendor shipped the fix."
+destato blockers reopen  --key 12 --note "It came back."
+destato blockers add-note --key 12 --note "Chased the vendor, no reply yet."
+```
+
+`--note` is **optional** on `resolve` and `reopen`, **required** on `add-note`.
+
+These are user-visible and notify teammates. **Confirm with the user before
+running any of them** unless they've explicitly asked for that exact action on
+that exact blocker.
+
+Rules worth knowing before you call:
+
+- Resolving an already-resolved blocker is a **400**, as is reopening an open
+  one. Check `status` first — via `view` or a list — rather than calling and
+  handling the error.
+- **Pass the user's reason as `--note` whenever they gave one.** "Resolve 12,
+  the vendor fixed it" means `--note "The vendor shipped the fix."` — the
+  reason belongs on the timeline, not lost in your reply. Quote them closely;
+  don't editorialize.
+- Use `add-note` when the status isn't changing. Don't resolve something just
+  to attach a comment.
+
 ## Finding UUIDs
 
 Every party flag takes a UUID, never a name. Resolve them first:

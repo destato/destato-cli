@@ -67,6 +67,21 @@ destato blockers list --team <team-uuid>   # one team
 destato blockers view --key 12
 destato blockers view --id <uuid>
 
+# The activity timeline: creation, status changes, edits, flags, snoozes,
+# aging crossings, and notes — oldest first.
+destato blockers history --key 12
+
+# Edit an open blocker — only the fields you pass change.
+destato blockers update --key 12 --title "CI is red on main"
+destato blockers update --key 12 --owner-user <uuid>
+destato blockers update --key 12 --clear-owner
+
+# Change status, or just leave a note. --note is optional on resolve and
+# reopen, required on add-note.
+destato blockers resolve  --key 12 --note "The vendor shipped the fix."
+destato blockers reopen   --key 12 --note "It came back."
+destato blockers add-note --key 12 --note "Chased the vendor, no reply yet."
+
 # File a blocker (affects you by default)
 destato blockers create \
   --type STUCK_ON_PROBLEM \
@@ -82,7 +97,35 @@ destato teams
 
 Blocker types: `WAITING_ON_SOMEONE`, `STUCK_ON_PROBLEM`, `NEED_DECISION`, `OTHER`.
 
-`--type`, `--title`, and `--description` are always required.
+`--type`, `--title`, and `--description` are always required on `create`.
+
+Every command that addresses a single blocker — `view`, `history`, `update`,
+`resolve`, `reopen`, `add-note` — takes `--key <number>` or `--id <uuid>` (with
+`--uuid` accepted as an alias for `--id`). Resolving an already-resolved
+blocker, or reopening an open one, is an error.
+
+### Editing, and the one gotcha
+
+`update` is partial: only the fields you pass change. Every party flag from
+`create` works, plus `--clear-blocked-by` and `--clear-owner` to remove one.
+A resolved blocker can't be edited, and who reported it never changes.
+
+**Changing `--type` usually needs a second flag.** The rule that `blockedBy` is
+required for `WAITING_ON_SOMEONE` / `NEED_DECISION` and rejected for
+`STUCK_ON_PROBLEM` / `OTHER` is evaluated against the blocker *after* your
+change — so if the type you're moving to disagrees with the blocked-by already
+on the record, the edit is rejected unless you fix both at once:
+
+```bash
+# Switching to a type that requires one:
+destato blockers update --key 12 --type WAITING_ON_SOMEONE \
+  --blocked-by-user <uuid>
+
+# Switching to a type that forbids one:
+destato blockers update --key 12 --type OTHER --clear-blocked-by
+```
+
+Splitting either of those into two commands fails on the first.
 
 ### Who the blocker involves
 

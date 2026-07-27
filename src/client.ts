@@ -44,6 +44,26 @@ export interface BlockerDetail extends Blocker {
   description: string | null;
 }
 
+// One entry in a blocker's activity timeline. `changes` varies by eventType,
+// so it stays untyped here exactly as it does in the published contract.
+export interface StatusEvent {
+  id: string;
+  eventType:
+    | 'CREATED'
+    | 'STATUS_CHANGE'
+    | 'UPDATED'
+    | 'FLAGGED'
+    | 'NOTE'
+    | 'SNOOZED'
+    | 'AGED';
+  status: string | null;
+  changes: Record<string, unknown> | null;
+  note: string | null;
+  // Null for a system-authored event (an aging crossing, an expired snooze).
+  changedBy: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface DirectoryUser {
   id: string;
   name: string;
@@ -79,6 +99,18 @@ export interface CreateBlockerInput {
   // Required for WAITING_ON_SOMEONE and NEED_DECISION, rejected for the rest.
   blockedBy?: BlockedByParty;
   owner?: OwnerParty;
+  blockedSince?: string;
+}
+
+// Every field optional — send only what changes. Explicit null on blockedBy or
+// owner clears it. No reporter: who filed a blocker is fixed at creation.
+export interface UpdateBlockerInput {
+  type?: string;
+  title?: string;
+  description?: string;
+  affected?: AffectedParty;
+  blockedBy?: BlockedByParty | null;
+  owner?: OwnerParty | null;
   blockedSince?: string;
 }
 
@@ -131,6 +163,48 @@ export class DestatoClient {
   // Takes a UUID or a #key; the API tells them apart by shape.
   getBlocker(idOrKey: string): Promise<BlockerDetail> {
     return this.request('GET', `/v1/blockers/${encodeURIComponent(idOrKey)}`);
+  }
+
+  updateBlocker(
+    idOrKey: string,
+    input: UpdateBlockerInput,
+  ): Promise<BlockerDetail> {
+    return this.request(
+      'PATCH',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}`,
+      input,
+    );
+  }
+
+  getBlockerHistory(idOrKey: string): Promise<StatusEvent[]> {
+    return this.request(
+      'GET',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}/history`,
+    );
+  }
+
+  resolveBlocker(idOrKey: string, note?: string): Promise<BlockerDetail> {
+    return this.request(
+      'POST',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}/resolve`,
+      note ? { note } : {},
+    );
+  }
+
+  reopenBlocker(idOrKey: string, note?: string): Promise<BlockerDetail> {
+    return this.request(
+      'POST',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}/reopen`,
+      note ? { note } : {},
+    );
+  }
+
+  addBlockerNote(idOrKey: string, note: string): Promise<BlockerDetail> {
+    return this.request(
+      'POST',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}/notes`,
+      { note },
+    );
   }
 
   createBlocker(input: CreateBlockerInput): Promise<Blocker> {
