@@ -207,7 +207,7 @@ export class DestatoClient {
     );
   }
 
-  createBlocker(input: CreateBlockerInput): Promise<Blocker> {
+  createBlocker(input: CreateBlockerInput): Promise<BlockerDetail> {
     return this.request('POST', '/v1/blockers', input);
   }
 
