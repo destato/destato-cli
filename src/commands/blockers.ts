@@ -254,11 +254,12 @@ export function registerBlockers(program: Command): void {
       '\nOnly the fields you pass change. Party flags work as they do on\n' +
         'create; --clear-blocked-by and --clear-owner remove a party.\n\n' +
         'Changing --type: blockedBy is required for WAITING_ON_SOMEONE and\n' +
-        'NEED_DECISION and rejected for STUCK_ON_PROBLEM and OTHER, and the\n' +
+        'NEED_DECISION, and optional for STUCK_ON_PROBLEM and OTHER, and the\n' +
         'rule is checked against the blocker AFTER your change. So switching\n' +
         'to a type that needs one means passing a --blocked-by-* flag in the\n' +
-        'same command, and switching to one that forbids it means passing\n' +
-        '--clear-blocked-by. Doing it in two steps fails.\n\n' +
+        'same command. Switching away from those two types does not require\n' +
+        '--clear-blocked-by — the existing value is left in place unless you\n' +
+        'pass it explicitly.\n\n' +
         'A resolved blocker cannot be edited, and who reported it never\n' +
         'changes.\n',
     )
@@ -401,7 +402,7 @@ export function registerBlockers(program: Command): void {
         '  filled in when they belong to exactly one. blockedBy also accepts\n' +
         '  --blocked-by-text when nothing in the workspace matches.\n\n' +
         '  blockedBy is required for WAITING_ON_SOMEONE and NEED_DECISION, and\n' +
-        '  rejected for STUCK_ON_PROBLEM and OTHER.\n\n' +
+        '  optional for STUCK_ON_PROBLEM and OTHER.\n\n' +
         '  Omit every --affected-* flag and the blocker affects you. Leave owner\n' +
         "  unset unless one was named: an unowned blocker routes to the affected\n" +
         "  team's responder.\n\n" +

@@ -96,7 +96,7 @@ export interface CreateBlockerInput {
   description: string;
   // Omitted means the token's own user, with their sole team filled in.
   affected?: AffectedParty;
-  // Required for WAITING_ON_SOMEONE and NEED_DECISION, rejected for the rest.
+  // Required for WAITING_ON_SOMEONE and NEED_DECISION, optional for the rest.
   blockedBy?: BlockedByParty;
   owner?: OwnerParty;
   blockedSince?: string;

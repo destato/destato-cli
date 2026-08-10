@@ -119,20 +119,18 @@ rules still apply — a named user's team must be one of theirs, `blockedSince`
 can't be in the future, and so on.
 
 **Read this before changing `--type`.** `blockedBy` is required for
-`WAITING_ON_SOMEONE` and `NEED_DECISION` and rejected for `STUCK_ON_PROBLEM`
+`WAITING_ON_SOMEONE` and `NEED_DECISION`, and optional for `STUCK_ON_PROBLEM`
 and `OTHER` — and on an edit that rule is checked against the blocker **as it
-will be after your change**, not against what you sent. So a lone `--type` flag
-usually fails:
-
-| Changing type to | You must also pass |
-|---|---|
-| `WAITING_ON_SOMEONE` or `NEED_DECISION`, and it has no blocked-by | a `--blocked-by-*` flag, in the same command |
-| `STUCK_ON_PROBLEM` or `OTHER`, and it has one | `--clear-blocked-by`, in the same command |
+will be after your change**, not against what you sent. So switching to
+`WAITING_ON_SOMEONE` or `NEED_DECISION` on a blocker with no blocked-by fails
+unless you also pass a `--blocked-by-*` flag in the same command. Switching
+away from those two types does not require `--clear-blocked-by` — the
+existing value is left in place unless you pass it explicitly.
 
 Check the blocker's current `blockedByUser`/`blockedByTeam`/`blockedByText`
-first — a list or `view` already tells you — and send both changes together.
-Doing it in two commands fails on the first one. Don't discover this by making
-a failed call.
+first — a list or `view` already tells you — and send both changes together
+when switching into a required type. Don't discover this by making a failed
+call.
 
 Two more things `update` will not do: **a resolved blocker can't be edited**
 (reopen it first), and **who reported a blocker never changes** — there is no
@@ -198,10 +196,11 @@ destato blockers create \
 |---|---|
 | `WAITING_ON_SOMEONE` | **required** |
 | `NEED_DECISION` | **required** |
-| `STUCK_ON_PROBLEM` | **rejected** — do not pass one |
-| `OTHER` | **rejected** — do not pass one |
+| `STUCK_ON_PROBLEM` | optional |
+| `OTHER` | optional |
 
-This is enforced by the API, not the CLI: get it wrong and you get a 400.
+The required cases are enforced by the API, not the CLI: omit `blockedBy` on
+one of the required types and you get a 400.
 
 ### The three parties
 
