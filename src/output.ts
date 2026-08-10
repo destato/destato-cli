@@ -37,17 +37,12 @@ export function printTable<T>(rows: T[], columns: Column<T>[]): void {
   for (const r of cells) process.stdout.write(line(r) + '\n');
 }
 
-// Compact one-letter badges for a blocker's boolean sub-states, e.g. "F·S··".
-export function statusFlags(b: {
-  flagged: boolean;
-  snoozedUntil: string | null;
-  aging: boolean;
-  delayed: boolean;
-}): string {
+// Compact one-letter badges for a blocker's state labels, e.g. "F·S··".
+export function statusFlags(b: { labels: string[] }): string {
   return (
-    (b.flagged ? 'F' : '·') +
-    (b.snoozedUntil ? 'S' : '·') +
-    (b.aging ? 'A' : '·') +
-    (b.delayed ? 'D' : '·')
+    (b.labels.includes('flagged') ? 'F' : '·') +
+    (b.labels.includes('snoozed') ? 'S' : '·') +
+    (b.labels.includes('aging') ? 'A' : '·') +
+    (b.labels.includes('delayed') ? 'D' : '·')
   );
 }

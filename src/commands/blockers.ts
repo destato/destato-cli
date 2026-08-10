@@ -4,6 +4,7 @@ import {
   Blocker,
   BlockedByParty,
   BlockerDetail,
+  FindBlockersQuery,
   StatusEvent,
   UpdateBlockerInput,
 } from '../client';
@@ -42,7 +43,7 @@ function printBlockers(blockers: Blocker[]): void {
     { header: 'KEY', value: (b) => `#${b.key}` },
     { header: 'STATUS', value: (b) => b.status },
     { header: 'FLAGS', value: statusFlags },
-    { header: 'REL', value: (b) => b.relationships.join(',') || '-' },
+    { header: 'LABELS', value: (b) => b.labels.join(',') || '-' },
     { header: 'AFFECTED', value: affectedLabel },
     { header: 'BLOCKED BY', value: blockedByLabel },
     { header: 'OWNER', value: ownerLabel },
@@ -67,15 +68,8 @@ function partyLabel(
 // A vertical label/value layout — one blocker has too many fields for the table
 // the list uses, and the description needs its own block.
 function printBlockerDetail(b: BlockerDetail): void {
-  const flags = [
-    b.flagged && 'flagged',
-    b.snoozedUntil && `snoozed until ${b.snoozedUntil}`,
-    b.aging && 'aging',
-    b.delayed && 'delayed',
-  ].filter(Boolean);
-
   const rows: [string, string][] = [
-    ['Status', b.status + (flags.length ? ` (${flags.join(', ')})` : '')],
+    ['Status', b.status + (b.labels.length ? ` (${b.labels.join(', ')})` : '')],
     ['Type', b.type],
     ['Affected', partyLabel(b.affectedUser, b.affectedTeam)],
     ['Blocked by', partyLabel(b.blockedByUser, b.blockedByTeam, b.blockedByText)],
@@ -87,7 +81,6 @@ function printBlockerDetail(b: BlockerDetail): void {
     ],
     ['Blocked since', b.blockedSince ?? '-'],
     ['Created', b.createdAt],
-    ['Relationships', b.relationships.join(', ') || '-'],
     ['ID', b.id],
   ];
 
@@ -192,19 +185,75 @@ export function registerBlockers(program: Command): void {
 
   blockers
     .command('list')
-    .description('List the open blockers you are involved in')
+    .description('List the open blockers you (or another user) are involved in')
     .option('--teams', "list blockers across all your teams instead of your own")
     .option('--team <uuid>', 'list blockers for one team (by team UUID)')
+    .option(
+      '--user <uuid>',
+      "list another workspace member's blockers instead of your own (by user UUID)",
+    )
     .action((_opts, command: Command) =>
       run(command, async (client, opts) => {
+        if (opts.user && (opts.team || opts.teams)) {
+          throw new Error('Give only one of --user, --team, or --teams.');
+        }
         const data = opts.team
           ? await client.listTeamBlockers(opts.team)
           : opts.teams
             ? await client.listMyTeamsBlockers()
-            : await client.listMyBlockers();
+            : await client.listMyBlockers(opts.user);
         if (opts.json) return printJson(data);
         printBlockers(data);
         process.stdout.write('\nFlags: F=flagged S=snoozed A=aging D=delayed\n');
+      }),
+    );
+
+  blockers
+    .command('find')
+    .description(
+      'Search every blocker in the workspace with filters, sort, and pagination (no free-text search)',
+    )
+    .option('--team <uuid>', 'affected team UUID')
+    .option('--user <uuid>', 'affected user UUID')
+    .option('--status <status>', 'OPEN | RESOLVED')
+    .option('--owner <uuid>', 'owner user UUID')
+    .option('--blocked-by <uuid>', 'blocked-by user UUID')
+    .option('--created-by <uuid>', 'creator user UUID')
+    .option('--type <type>', `blocker type (${BLOCKER_TYPES.join(' | ')})`)
+    .option('--flagged', 'only flagged blockers')
+    .option('--aging', 'only aging blockers')
+    .option('--delayed', 'only delayed blockers')
+    .option('--snoozed', 'only snoozed blockers')
+    .option('--sort <field>', 'createdAt | blockedSince | title')
+    .option('--sort-dir <dir>', 'asc | desc (default: asc)')
+    .option('--page <n>', 'page number (default: 1)')
+    .option('--page-size <n>', 'results per page, max 100 (default: 25)')
+    .action((_opts, command: Command) =>
+      run(command, async (client, opts) => {
+        const query: FindBlockersQuery = {
+          ...(opts.team && { affectedTeamId: opts.team }),
+          ...(opts.user && { affectedUserId: opts.user }),
+          ...(opts.status && { status: opts.status }),
+          ...(opts.owner && { ownerUserId: opts.owner }),
+          ...(opts.blockedBy && { blockedByUserId: opts.blockedBy }),
+          ...(opts.createdBy && { createdById: opts.createdBy }),
+          ...(opts.type && { type: opts.type }),
+          ...(opts.flagged && { isFlagged: true }),
+          ...(opts.aging && { isAging: true }),
+          ...(opts.delayed && { isDelayed: true }),
+          ...(opts.snoozed && { isSnoozed: true }),
+          ...(opts.sort && { sortBy: opts.sort }),
+          ...(opts.sortDir && { sortDir: opts.sortDir }),
+          ...(opts.page && { page: Number(opts.page) }),
+          ...(opts.pageSize && { pageSize: Number(opts.pageSize) }),
+        };
+        const result = await client.findBlockers(query);
+        if (opts.json) return printJson(result);
+        printBlockers(result.blockers);
+        process.stdout.write(
+          `\nFlags: F=flagged S=snoozed A=aging D=delayed\n` +
+            `Page ${result.page} (${result.blockers.length} of ${result.totalCount} total)\n`,
+        );
       }),
     );
 

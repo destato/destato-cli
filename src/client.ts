@@ -14,6 +14,19 @@ export class ApiError extends Error {
   }
 }
 
+// Bucket membership (only set by a targeted list — see the /v1 openapi doc
+// for "Blocker buckets") plus state tags, in one array. A `find` result's
+// labels only ever carries the state tags — it has no subject, so no bucket
+// label is ever present.
+export type BlockerLabel =
+  | 'triage'
+  | 'yourBlockers'
+  | 'blockingOthers'
+  | 'flagged'
+  | 'aging'
+  | 'delayed'
+  | 'snoozed';
+
 // Minimal typed view of the /v1 responses the CLI renders. Kept loose on purpose
 // - the CLI mirrors the API's published shape without re-deriving all of it.
 export interface Blocker {
@@ -31,17 +44,38 @@ export interface Blocker {
   ownerTeam: { id: string; name: string } | null;
   createdAt: string;
   blockedSince: string | null;
-  relationships: string[];
-  flagged: boolean;
-  snoozedUntil: string | null;
-  aging: boolean;
-  delayed: boolean;
+  labels: BlockerLabel[];
 }
 
 // One blocker in full: the list shape plus the description, the one field a
 // list holds back.
 export interface BlockerDetail extends Blocker {
   description: string | null;
+}
+
+export interface FindBlockersQuery {
+  affectedTeamId?: string;
+  affectedUserId?: string;
+  status?: string;
+  ownerUserId?: string;
+  blockedByUserId?: string;
+  createdById?: string;
+  type?: string;
+  isFlagged?: boolean;
+  isAging?: boolean;
+  isDelayed?: boolean;
+  isSnoozed?: boolean;
+  sortBy?: 'createdAt' | 'blockedSince' | 'title';
+  sortDir?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface FindBlockersResult {
+  blockers: Blocker[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
 }
 
 // One entry in a blocker's activity timeline. `changes` varies by eventType,
@@ -148,8 +182,11 @@ export class DestatoClient {
     return (await res.json()) as T;
   }
 
-  listMyBlockers(): Promise<Blocker[]> {
-    return this.request('GET', '/v1/blockers');
+  // Omit userId for the caller's own buckets; pass it for another workspace
+  // member's triage/yourBlockers/blockingOthers buckets instead.
+  listMyBlockers(userId?: string): Promise<Blocker[]> {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    return this.request('GET', `/v1/blockers${qs}`);
   }
 
   listMyTeamsBlockers(): Promise<Blocker[]> {
@@ -158,6 +195,17 @@ export class DestatoClient {
 
   listTeamBlockers(teamId: string): Promise<Blocker[]> {
     return this.request('GET', `/v1/teams/${encodeURIComponent(teamId)}/blockers`);
+  }
+
+  // A flat filtered/sorted/paginated search — no free-text search, exact
+  // match filters only.
+  findBlockers(query: FindBlockersQuery): Promise<FindBlockersResult> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const qs = params.toString();
+    return this.request('GET', `/v1/blockers/find${qs ? `?${qs}` : ''}`);
   }
 
   // Takes a UUID or a #key; the API tells them apart by shape.

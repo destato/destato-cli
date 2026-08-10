@@ -23,22 +23,61 @@ if the user is pointing at a local or staging API.
 
 Invoke the CLI as `destato` if it's on PATH, otherwise `npx destato-cli`.
 
-## Listing blockers
+## Listing blockers vs. finding blockers
+
+Two different commands for two different questions:
+
+- **`blockers list`** — "what does *this person or team* have going on":
+  triage queue, their own blockers, blockers they're blocking others on.
+  Grouped by subject, not searchable by criteria.
+- **`blockers find`** — "which blockers match *these criteria*": status,
+  team, flagged, aging, type, and so on, with sort and pagination. No
+  subject, no free-text search (every filter is exact-match).
+
+"What's blocking John" is `blockers list --user <john's uuid>`, not a filter
+on `find`. "Show me flagged blockers" or "what's delayed on the Mobile team"
+is `blockers find`, not `list`.
 
 Always pass `--json` — you are parsing the output, not showing a table to a
 human. Summarize in prose afterwards.
 
+### `blockers list`
+
 ```bash
-destato blockers list --json          # open blockers you're involved in
-destato blockers list --teams --json  # across all your teams
+destato blockers list --json                    # open blockers you're involved in
+destato blockers list --teams --json             # across all your teams
 destato blockers list --team <team-uuid> --json
+destato blockers list --user <user-uuid> --json  # another workspace member's buckets
 ```
 
-Default scope (no flags) is the user's own involvement: blockers they triage,
-that affect them, or that they're blocking. Use `--teams` when the user asks
-about "the team" or "everyone" rather than themselves.
+Default (no flags) is the user's own involvement: blockers they triage, their
+own blockers, and ones they're blocking others on. `--user` gives the exact
+same three buckets for a different workspace member — resolve their name to a
+UUID with `destato users --json` first; any workspace member may look up any
+other's blockers, there's no additional "shares a team" requirement.
+`--teams`, `--team`, and `--user` are mutually exclusive.
 
-Each blocker in the JSON array:
+### `blockers find`
+
+```bash
+destato blockers find --flagged --json
+destato blockers find --team <team-uuid> --status OPEN --json
+destato blockers find --aging --sort blockedSince --json
+destato blockers find --page 2 --page-size 50 --json
+```
+
+Filters: `--team`, `--user` (affected user — plain equality, unlike `list
+--user`'s bucket lookup), `--status`, `--owner`, `--blocked-by`,
+`--created-by`, `--type`, `--flagged`, `--aging`, `--delayed`, `--snoozed`.
+Sort: `--sort createdAt|blockedSince|title`, `--sort-dir asc|desc`. Pagination:
+`--page`, `--page-size` (max 100, default 25). No filters and no status means
+**every** blocker in the workspace, open and resolved — always pass at least
+one unless the user actually wants that.
+
+The JSON result is `{ blockers, totalCount, page, pageSize }` — `totalCount`
+is how many matched in total, not how many are in this page.
+
+### Fields on each blocker
 
 | Field | Meaning |
 |---|---|
@@ -46,20 +85,28 @@ Each blocker in the JSON array:
 | `id` | UUID, only needed for API calls |
 | `type` | `WAITING_ON_SOMEONE` \| `STUCK_ON_PROBLEM` \| `NEED_DECISION` \| `OTHER` |
 | `status` | Workflow status |
-| `relationships` | Why this blocker is in *your* list (triage / affecting / blocking) |
 | `affectedTeam` / `affectedUser` | Who is blocked |
 | `blockedByUser` / `blockedByTeam` | Who is blocking, when it resolved to a real user or team |
 | `blockedByText` | Free text, when it didn't resolve to either |
 | `ownerUser` / `ownerTeam` | Who owns it; **both null means unowned** — it's sitting in the affected team's triage queue |
-| `blockedSince` | When it started — use for "how long has this been stuck" |
-| `flagged`, `snoozedUntil`, `aging`, `delayed` | Attention signals |
+| `blockedSince` | When it started |
+| `labels` | Why it's in a `list` result (`triage` / `yourBlockers` / `blockingOthers` — never present on a `find` result, which has no subject) plus state tags (`flagged` / `aging` / `delayed` / `snoozed`) |
 
 Lists carry every party, so you can answer "who is this waiting on?" and "who
 owns it?" straight from a list. The **description** is the one field a list
 holds back — for that, use `blockers view`.
 
+**`labels`' state tags are precomputed and authoritative — don't recompute
+elapsed time from `blockedSince`/`createdAt`.** Say "this is aging" or "this is
+delayed" (or say nothing, if neither tag is present); don't narrate "blocked
+for 3 days" by doing the date math yourself, and don't treat a resolved
+blocker's missing `aging`/`delayed` tags as meaning it was never aging or
+delayed — those tags follow the app's display rules (hidden once resolved or
+snoozed), not the raw history. Use `blockers find --aging --status RESOLVED`
+if you actually need blockers that *were* aging or delayed at some point.
+
 When summarizing, lead with `flagged` and `aging`/`delayed` items — those are
-the ones needing action. Mention `snoozedUntil` items only if the user asks for
+the ones needing action. Mention `snoozed` items only if the user asks for
 everything.
 
 ## Getting one blocker
