@@ -37,12 +37,25 @@ export function printTable<T>(rows: T[], columns: Column<T>[]): void {
   for (const r of cells) process.stdout.write(line(r) + '\n');
 }
 
-// Compact one-letter badges for a blocker's state labels, e.g. "F·S··".
+// Compact one-letter badges for a blocker's state labels, e.g. "F·S···".
+// L is for lapsing: the blocker will close itself unless someone confirms it.
 export function statusFlags(b: { labels: string[] }): string {
   return (
     (b.labels.includes('flagged') ? 'F' : '·') +
     (b.labels.includes('snoozed') ? 'S' : '·') +
     (b.labels.includes('aging') ? 'A' : '·') +
-    (b.labels.includes('delayed') ? 'D' : '·')
+    (b.labels.includes('delayed') ? 'D' : '·') +
+    (b.labels.includes('decaying') ? 'L' : '·')
   );
+}
+
+// "lapses in 3d", or null when the blocker is not decaying. Days rather than an
+// exact time: the CLI is glanced at, and the detail view carries the date.
+export function lapsesInText(b: { lapsesAt?: string | null }): string | null {
+  if (!b.lapsesAt) return null;
+  const days = Math.max(
+    0,
+    Math.ceil((new Date(b.lapsesAt).getTime() - Date.now()) / 86_400_000),
+  );
+  return days <= 1 ? 'lapses within a day' : `lapses in ${days}d`;
 }

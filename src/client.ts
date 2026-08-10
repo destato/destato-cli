@@ -25,7 +25,8 @@ export type BlockerLabel =
   | 'flagged'
   | 'aging'
   | 'delayed'
-  | 'snoozed';
+  | 'snoozed'
+  | 'decaying';
 
 // Minimal typed view of the /v1 responses the CLI renders. Kept loose on purpose
 // - the CLI mirrors the API's published shape without re-deriving all of it.
@@ -44,6 +45,9 @@ export interface Blocker {
   ownerTeam: { id: string; name: string } | null;
   createdAt: string;
   blockedSince: string | null;
+  // Set only while `labels` carries `decaying`: when the blocker will close
+  // itself unless someone confirms it is still a problem.
+  lapsesAt: string | null;
   labels: BlockerLabel[];
 }
 
@@ -65,6 +69,7 @@ export interface FindBlockersQuery {
   isAging?: boolean;
   isDelayed?: boolean;
   isSnoozed?: boolean;
+  isDecaying?: boolean;
   sortBy?: 'createdAt' | 'blockedSince' | 'title';
   sortDir?: 'asc' | 'desc';
   page?: number;
@@ -244,6 +249,14 @@ export class DestatoClient {
       'POST',
       `/v1/blockers/${encodeURIComponent(idOrKey)}/reopen`,
       note ? { note } : {},
+    );
+  }
+
+  confirmBlocker(idOrKey: string): Promise<BlockerDetail> {
+    return this.request(
+      'POST',
+      `/v1/blockers/${encodeURIComponent(idOrKey)}/confirm`,
+      {},
     );
   }
 

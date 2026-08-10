@@ -8,7 +8,7 @@ import {
   StatusEvent,
   UpdateBlockerInput,
 } from '../client';
-import { printJson, printTable, statusFlags } from '../output';
+import { lapsesInText, printJson, printTable, statusFlags } from '../output';
 import { run } from './shared';
 
 const BLOCKER_TYPES = [
@@ -83,6 +83,15 @@ function printBlockerDetail(b: BlockerDetail): void {
     ['Created', b.createdAt],
     ['ID', b.id],
   ];
+
+  // Spell the consequence out rather than leaning on "lapses" alone - this may
+  // be the reader's first encounter with the word.
+  if (b.lapsesAt) {
+    rows.splice(1, 0, [
+      'Lapses',
+      `${b.lapsesAt} (${lapsesInText(b)}) - closes automatically unless someone confirms it is still a problem`,
+    ]);
+  }
 
   const width = Math.max(...rows.map(([label]) => label.length));
   process.stdout.write(`#${b.key}  ${b.title}\n\n`);
@@ -215,7 +224,7 @@ export function registerBlockers(program: Command): void {
     )
     .option('--team <uuid>', 'affected team UUID')
     .option('--user <uuid>', 'affected user UUID')
-    .option('--status <status>', 'OPEN | RESOLVED')
+    .option('--status <status>', 'OPEN | RESOLVED | LAPSED')
     .option('--owner <uuid>', 'owner user UUID')
     .option('--blocked-by <uuid>', 'blocked-by user UUID')
     .option('--created-by <uuid>', 'creator user UUID')
@@ -224,6 +233,7 @@ export function registerBlockers(program: Command): void {
     .option('--aging', 'only aging blockers')
     .option('--delayed', 'only delayed blockers')
     .option('--snoozed', 'only snoozed blockers')
+    .option('--decaying', 'only blockers about to lapse')
     .option('--sort <field>', 'createdAt | blockedSince | title')
     .option('--sort-dir <dir>', 'asc | desc (default: asc)')
     .option('--page <n>', 'page number (default: 1)')
@@ -242,6 +252,7 @@ export function registerBlockers(program: Command): void {
           ...(opts.aging && { isAging: true }),
           ...(opts.delayed && { isDelayed: true }),
           ...(opts.snoozed && { isSnoozed: true }),
+          ...(opts.decaying && { isDecaying: true }),
           ...(opts.sort && { sortBy: opts.sort }),
           ...(opts.sortDir && { sortDir: opts.sortDir }),
           ...(opts.page && { page: Number(opts.page) }),
@@ -251,7 +262,7 @@ export function registerBlockers(program: Command): void {
         if (opts.json) return printJson(result);
         printBlockers(result.blockers);
         process.stdout.write(
-          `\nFlags: F=flagged S=snoozed A=aging D=delayed\n` +
+          `\nFlags: F=flagged S=snoozed A=aging D=delayed L=lapsing\n` +
             `Page ${result.page} (${result.blockers.length} of ${result.totalCount} total)\n`,
         );
       }),
@@ -408,6 +419,22 @@ export function registerBlockers(program: Command): void {
         );
       }),
     );
+
+  addressOptions(
+    blockers
+      .command('confirm')
+      .description(
+        'Confirm a blocker is still a problem, so it will not lapse',
+      ),
+  ).action((_opts, command: Command) =>
+    run(command, async (client, opts) => {
+      const blocker = await client.confirmBlocker(address(opts));
+      if (opts.json) return printJson(blocker);
+      process.stdout.write(
+        `Confirmed blocker #${blocker.key} is still a problem: ${blocker.title}\n`,
+      );
+    }),
+  );
 
   addressOptions(
     blockers

@@ -68,7 +68,8 @@ destato blockers find --page 2 --page-size 50 --json
 
 Filters: `--team`, `--user` (affected user — plain equality, unlike `list
 --user`'s bucket lookup), `--status`, `--owner`, `--blocked-by`,
-`--created-by`, `--type`, `--flagged`, `--aging`, `--delayed`, `--snoozed`.
+`--created-by`, `--type`, `--flagged`, `--aging`, `--delayed`, `--snoozed`,
+`--decaying`. `--status` takes `OPEN`, `RESOLVED`, or `LAPSED`.
 Sort: `--sort createdAt|blockedSince|title`, `--sort-dir asc|desc`. Pagination:
 `--page`, `--page-size` (max 100, default 25). No filters and no status means
 **every** blocker in the workspace, open and resolved — always pass at least
@@ -90,7 +91,8 @@ is how many matched in total, not how many are in this page.
 | `blockedByText` | Free text, when it didn't resolve to either |
 | `ownerUser` / `ownerTeam` | Who owns it; **both null means unowned** — it's sitting in the affected team's triage queue |
 | `blockedSince` | When it started |
-| `labels` | Why it's in a `list` result (`triage` / `yourBlockers` / `blockingOthers` — never present on a `find` result, which has no subject) plus state tags (`flagged` / `aging` / `delayed` / `snoozed`) |
+| `labels` | Why it's in a `list` result (`triage` / `yourBlockers` / `blockingOthers` — never present on a `find` result, which has no subject) plus state tags (`flagged` / `aging` / `delayed` / `snoozed` / `decaying`) |
+| `lapsesAt` | Set only while `decaying`: when the blocker will close itself unless someone confirms it |
 
 Lists carry every party, so you can answer "who is this waiting on?" and "who
 owns it?" straight from a list. The **description** is the one field a list
@@ -105,9 +107,23 @@ delayed — those tags follow the app's display rules (hidden once resolved or
 snoozed), not the raw history. Use `blockers find --aging --status RESOLVED`
 if you actually need blockers that *were* aging or delayed at some point.
 
-When summarizing, lead with `flagged` and `aging`/`delayed` items — those are
-the ones needing action. Mention `snoozed` items only if the user asks for
-everything.
+### Decaying and lapsed blockers
+
+`decaying` means nobody has touched the blocker in a while, so its affected
+party has been asked whether it's still a problem. If nobody answers it closes
+itself with status **`LAPSED`**.
+
+**A lapsed blocker was not resolved.** It closed because everyone went quiet,
+which is close to the opposite of getting fixed. Never describe one as
+resolved, done, or completed, and never fold lapsed blockers into a count of
+resolved work — that distinction is the whole reason the status exists.
+
+`lapsesAt` is the exact deadline. **Quote it rather than estimating** — don't
+work out "about 3 days" from any other date.
+
+When summarizing, lead with `flagged`, `decaying`, and `aging`/`delayed` items
+— those are the ones needing action. Mention `snoozed` items only if the user
+asks for everything.
 
 ## Getting one blocker
 
@@ -189,9 +205,22 @@ reporter field.
 destato blockers resolve --key 12 --note "The vendor shipped the fix."
 destato blockers reopen  --key 12 --note "It came back."
 destato blockers add-note --key 12 --note "Chased the vendor, no reply yet."
+destato blockers confirm --key 12
 ```
 
-`--note` is **optional** on `resolve` and `reopen`, **required** on `add-note`.
+`--note` is **optional** on `resolve` and `reopen`, **required** on `add-note`,
+and **not accepted** by `confirm`.
+
+`confirm` answers the "is this still a problem?" question a `decaying` blocker
+is asking: it resets the clock so the blocker won't lapse, and changes nothing
+else. Any workspace member may confirm any blocker, so this is also how a user
+vouches for a teammate's blocker.
+
+Use `confirm` when the user says a blocker is **still** a problem, and
+`resolve` when they say it **isn't**. Both are better than letting it lapse,
+because both record a decision where lapsing records only silence. Never
+confirm a blocker on your own initiative to "keep things tidy" — confirming
+claims the work is still stopped, which is a statement only the user can make.
 
 These are user-visible and notify teammates. **Confirm with the user before
 running any of them** unless they've explicitly asked for that exact action on
